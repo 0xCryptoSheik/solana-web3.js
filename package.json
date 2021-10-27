@@ -37,7 +37,7 @@
     "/src"
   ],
   "scripts": {
-    "build": "npm run clean; cross-env NODE_ENV=production rollup -c; npm run type:gen; npm run flow:gen; npm run flow:check",
+    "build": "npm run clean; cross-env NODE_ENV=production rollup -c;",
     "build:browser-test": "rollup -c test/rollup.config.js",
     "build:fixtures": "set -ex; ./test/fixtures/noop-program/build.sh",
     "clean": "rimraf ./coverage ./lib",
@@ -106,6 +106,7 @@
     "@types/sinon": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^4.14.2",
     "@typescript-eslint/parser": "^4.14.2",
+    "agadoo": "^2.0.0",
     "chai": "^4.3.0",
     "chai-as-promised": "^7.1.1",
     "codecov": "^3.0.4",

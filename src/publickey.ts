@@ -1,12 +1,49 @@
 import BN from 'bn.js';
 import bs58 from 'bs58';
-import {Buffer} from 'buffer';
+import { Buffer } from 'buffer';
 import nacl from 'tweetnacl';
-import {sha256} from '@ethersproject/sha2';
+import { sha256 } from '@ethersproject/sha2';
+import { serialize, deserialize, deserializeUnchecked } from 'borsh';
+import { toBuffer } from './util/to-buffer';
 
-import {Struct, SOLANA_SCHEMA} from './util/borsh-schema';
-import {toBuffer} from './util/to-buffer';
+// Class wrapping a plain object
+export class Struct {
+  constructor(properties: any) {
+    Object.assign(this, properties);
+  }
 
+  encode(): Buffer {
+    return Buffer.from(serialize(SOLANA_SCHEMA, this));
+  }
+
+  static decode(data: Buffer): any {
+    return deserialize(SOLANA_SCHEMA, this, data);
+  }
+
+  static decodeUnchecked(data: Buffer): any {
+    return deserializeUnchecked(SOLANA_SCHEMA, this, data);
+  }
+}
+
+// Class representing a Rust-compatible enum, since enums are only strings or
+// numbers in pure JS
+export class Enum extends Struct {
+  enum: string = '';
+  constructor(properties: any) {
+    super(properties);
+    if (Object.keys(properties).length !== 1) {
+      throw new Error('Enum can only take single value');
+    }
+    Object.keys(properties).map(key => {
+      this.enum = key;
+    });
+  }
+}
+
+export const SOLANA_SCHEMA: Map<Function, any> = new Map([[PublicKey, {
+  kind: 'struct',
+  fields: [['_bn', 'u256']],
+}]]);
 /**
  * Maximum length of derived pubkey seed
  */
@@ -71,7 +108,9 @@ export class PublicKey extends Struct {
   /**
    * Default public key value. (All zeros)
    */
-  static default: PublicKey = new PublicKey('11111111111111111111111111111111');
+  static getDefault(): PublicKey {
+    return new PublicKey('11111111111111111111111111111111');
+  }
 
   /**
    * Checks if two publicKeys are equal
@@ -121,47 +160,47 @@ export class PublicKey extends Struct {
    * it permission to write data to the account.
    */
   /* eslint-disable require-await */
-  static async createWithSeed(
-    fromPublicKey: PublicKey,
-    seed: string,
-    programId: PublicKey,
-  ): Promise<PublicKey> {
-    const buffer = Buffer.concat([
-      fromPublicKey.toBuffer(),
-      Buffer.from(seed),
-      programId.toBuffer(),
-    ]);
-    const hash = sha256(new Uint8Array(buffer)).slice(2);
-    return new PublicKey(Buffer.from(hash, 'hex'));
-  }
+  // static async createWithSeed(
+  //   fromPublicKey: PublicKey,
+  //   seed: string,
+  //   programId: PublicKey,
+  // ): Promise<PublicKey> {
+  //   const buffer = Buffer.concat([
+  //     fromPublicKey.toBuffer(),
+  //     Buffer.from(seed),
+  //     programId.toBuffer(),
+  //   ]);
+  //   const hash = sha256(new Uint8Array(buffer)).slice(2);
+  //   return new PublicKey(Buffer.from(hash, 'hex'));
+  // }
 
   /**
    * Derive a program address from seeds and a program ID.
    */
   /* eslint-disable require-await */
-  static async createProgramAddress(
-    seeds: Array<Buffer | Uint8Array>,
-    programId: PublicKey,
-  ): Promise<PublicKey> {
-    let buffer = Buffer.alloc(0);
-    seeds.forEach(function (seed) {
-      if (seed.length > MAX_SEED_LENGTH) {
-        throw new TypeError(`Max seed length exceeded`);
-      }
-      buffer = Buffer.concat([buffer, toBuffer(seed)]);
-    });
-    buffer = Buffer.concat([
-      buffer,
-      programId.toBuffer(),
-      Buffer.from('ProgramDerivedAddress'),
-    ]);
-    let hash = sha256(new Uint8Array(buffer)).slice(2);
-    let publicKeyBytes = new BN(hash, 16).toArray(undefined, 32);
-    if (is_on_curve(publicKeyBytes)) {
-      throw new Error(`Invalid seeds, address must fall off the curve`);
-    }
-    return new PublicKey(publicKeyBytes);
-  }
+  // static async createProgramAddress(
+  //   seeds: Array<Buffer | Uint8Array>,
+  //   programId: PublicKey,
+  // ): Promise<PublicKey> {
+  //   let buffer = Buffer.alloc(0);
+  //   seeds.forEach(function (seed) {
+  //     if (seed.length > MAX_SEED_LENGTH) {
+  //       throw new TypeError(`Max seed length exceeded`);
+  //     }
+  //     buffer = Buffer.concat([buffer, toBuffer(seed)]);
+  //   });
+  //   buffer = Buffer.concat([
+  //     buffer,
+  //     programId.toBuffer(),
+  //     Buffer.from('ProgramDerivedAddress'),
+  //   ]);
+  //   let hash = sha256(new Uint8Array(buffer)).slice(2);
+  //   let publicKeyBytes = new BN(hash, 16).toArray(undefined, 32);
+  //   if (is_on_curve(publicKeyBytes)) {
+  //     throw new Error(`Invalid seeds, address must fall off the curve`);
+  //   }
+  //   return new PublicKey(publicKeyBytes);
+  // }
 
   /**
    * Find a valid program address
@@ -200,18 +239,15 @@ export class PublicKey extends Struct {
   }
 }
 
-SOLANA_SCHEMA.set(PublicKey, {
-  kind: 'struct',
-  fields: [['_bn', 'u256']],
-});
-
 // @ts-ignore
-let naclLowLevel = nacl.lowlevel;
 
 // Check that a pubkey is on the curve.
 // This function and its dependents were sourced from:
-// https://github.com/dchest/tweetnacl-js/blob/f1ec050ceae0861f34280e62498b1d3ed9c350c6/nacl.js#L792
+// // https://github.com/dchest/tweetnacl-js/blob/f1ec050ceae0861f34280e62498b1d3ed9c350c6/nacl.js#L792
 function is_on_curve(p: any) {
+  // @ts-ignore
+  const naclLowLevel = nacl.lowlevel;
+
   var r = [
     naclLowLevel.gf(),
     naclLowLevel.gf(),
@@ -227,7 +263,7 @@ function is_on_curve(p: any) {
     den4 = naclLowLevel.gf(),
     den6 = naclLowLevel.gf();
 
-  naclLowLevel.set25519(r[2], gf1);
+  naclLowLevel.set25519(r[2], getgf1());
   naclLowLevel.unpack25519(r[1], p);
   naclLowLevel.S(num, r[1]);
   naclLowLevel.M(den, num, naclLowLevel.D);
@@ -248,19 +284,30 @@ function is_on_curve(p: any) {
 
   naclLowLevel.S(chk, r[0]);
   naclLowLevel.M(chk, chk, den);
-  if (neq25519(chk, num)) naclLowLevel.M(r[0], r[0], I);
+  if (neq25519(chk, num)) naclLowLevel.M(r[0], r[0], getI());
 
   naclLowLevel.S(chk, r[0]);
   naclLowLevel.M(chk, chk, den);
   if (neq25519(chk, num)) return 0;
   return 1;
 }
-let gf1 = naclLowLevel.gf([1]);
-let I = naclLowLevel.gf([
-  0xa0b0, 0x4a0e, 0x1b27, 0xc4ee, 0xe478, 0xad2f, 0x1806, 0x2f43, 0xd7a7,
-  0x3dfb, 0x0099, 0x2b4d, 0xdf0b, 0x4fc1, 0x2480, 0x2b83,
-]);
+
+function getgf1() {
+  // @ts-ignore
+  return nacl.lowlevel.gf([1]);
+}
+
+function getI() {
+  // @ts-ignore
+  return nacl.lowlevel.gf([
+    0xa0b0, 0x4a0e, 0x1b27, 0xc4ee, 0xe478, 0xad2f, 0x1806, 0x2f43, 0xd7a7,
+    0x3dfb, 0x0099, 0x2b4d, 0xdf0b, 0x4fc1, 0x2480, 0x2b83,
+  ]);
+};
+
 function neq25519(a: any, b: any) {
+  // @ts-ignore
+  const naclLowLevel = nacl.lowlevel;
   var c = new Uint8Array(32),
     d = new Uint8Array(32);
   naclLowLevel.pack25519(c, a);

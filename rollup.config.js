@@ -108,14 +108,7 @@ function generateConfig(configType, format) {
               format: 'iife',
               name: 'solanaWeb3',
               sourcemap: true,
-            },
-            {
-              file: 'lib/index.iife.min.js',
-              format: 'iife',
-              name: 'solanaWeb3',
-              sourcemap: true,
-              plugins: [terser({mangle: false, compress: false})],
-            },
+            }
           ];
 
           break;
@@ -151,7 +144,5 @@ function generateConfig(configType, format) {
 }
 
 export default [
-  generateConfig('node'),
   generateConfig('browser', 'esm'),
-  generateConfig('browser', 'iife'),
 ];

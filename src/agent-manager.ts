@@ -9,15 +9,6 @@ export class AgentManager {
   _destroyTimeout: ReturnType<typeof setTimeout> | null = null;
   _useHttps: boolean;
 
-  static _newAgent(useHttps: boolean): http.Agent | https.Agent {
-    const options = {keepAlive: true, maxSockets: 25};
-    if (useHttps) {
-      return new https.Agent(options);
-    } else {
-      return new http.Agent(options);
-    }
-  }
-
   constructor(useHttps?: boolean) {
     this._useHttps = useHttps === true;
     this._agent = AgentManager._newAgent(this._useHttps);
